@@ -42,10 +42,10 @@
 <body>
     <nav class="navbar bg-white shadow-sm mb-4">
         <div class="container">
-            <a class="navbar-brand">
+            <a class="navbar-brand" href="#">
                 <i class="fas fa-microchip"></i> IoT LED Control
             </a>
-            <span id="clock"></span>
+            <span id="clock" aria-live="polite"></span>
         </div>
     </nav>
     <div class="container">
@@ -56,9 +56,9 @@
                     <div class="card-body text-center">
                         <h5>LED 1 (Green)</h5>
                         <div id="led1-visual" class="led-circle"><i class="fas fa-lightbulb"></i></div>
-                        <p id="led1-status" class="led-status">Loading...</p>
-                        <form method="POST" class="d-flex justify-content-center gap-2">
-                            <button name="command" value="G" class="btn btn-success">Toggle</button>
+                        <p id="led1-status" class="led-status" role="status">Loading...</p>
+                        <form method="POST" action="/toggle" class="d-flex justify-content-center gap-2">
+                            <button name="command" value="G" class="btn btn-success" aria-label="Toggle Green LED">Toggle</button>
                         </form>
                     </div>
                 </div>
@@ -69,9 +69,9 @@
                     <div class="card-body text-center">
                         <h5>LED 2 (Yellow)</h5>
                         <div id="led2-visual" class="led-circle"><i class="fas fa-lightbulb"></i></div>
-                        <p id="led2-status" class="led-status">Loading...</p>
-                        <form method="POST" class="d-flex justify-content-center gap-2">
-                            <button name="command" value="Y" class="btn btn-warning">Toggle</button>
+                        <p id="led2-status" class="led-status" role="status">Loading...</p>
+                        <form method="POST" action="/toggle" class="d-flex justify-content-center gap-2">
+                            <button name="command" value="Y" class="btn btn-warning" aria-label="Toggle Yellow LED">Toggle</button>
                         </form>
                     </div>
                 </div>
@@ -82,9 +82,9 @@
                     <div class="card-body text-center">
                         <h5>LED 3 (Red)</h5>
                         <div id="led3-visual" class="led-circle"><i class="fas fa-lightbulb"></i></div>
-                        <p id="led3-status" class="led-status">Loading...</p>
-                        <form method="POST" class="d-flex justify-content-center gap-2">
-                            <button name="command" value="R" class="btn btn-danger">Toggle</button>
+                        <p id="led3-status" class="led-status" role="status">Loading...</p>
+                        <form method="POST" action="/toggle" class="d-flex justify-content-center gap-2">
+                            <button name="command" value="R" class="btn btn-danger" aria-label="Toggle Red LED">Toggle</button>
                         </form>
                     </div>
                 </div>
@@ -101,21 +101,39 @@
         updateClock();
 
         // Refresh LED status every 3 seconds
+        let retryCount = 0;
         function refreshStatus() {
             fetch('/status')
-                .then(res => res.json())
+                .then(res => {
+                    if (!res.ok) throw new Error('Failed to fetch status');
+                    return res.json();
+                })
                 .then(data => {
-                    for (let i = 1; i <= 3; i++) {
-                        const isOn = data[i.toString()];
+                    retryCount = 0; // Reset retry count on success
+                    Object.keys(data).forEach(i => {
+                        const isOn = data[i];
                         const stat = document.getElementById(`led${i}-status`);
                         const vis = document.getElementById(`led${i}-visual`);
-                        stat.textContent = isOn ? 'ON' : 'OFF';
-                        stat.classList.toggle('on', isOn);
-                        stat.classList.toggle('off', !isOn);
-                        vis.classList.toggle(`on-${i}`, isOn);
-                    }
+                        if (stat && vis) {
+                            stat.textContent = isOn ? 'ON' : 'OFF';
+                            stat.classList.toggle('on', isOn);
+                            stat.classList.toggle('off', !isOn);
+                            vis.classList.toggle(`on-${i}`, isOn);
+                        }
+                    });
                 })
-                .catch(error => console.error('Error fetching status:', error));
+                .catch(error => {
+                    console.error('Error fetching status:', error);
+                    if (retryCount < 3) {
+                        retryCount++;
+                        setTimeout(refreshStatus, 5000); // Retry after 5 seconds
+                    } else {
+                        ['1', '2', '3'].forEach(i => {
+                            const stat = document.getElementById(`led${i}-status`);
+                            if (stat) stat.textContent = 'Error';
+                        });
+                    }
+                });
         }
         setInterval(refreshStatus, 3000);
         refreshStatus();
